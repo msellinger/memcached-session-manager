@@ -320,6 +320,16 @@ public class MemcachedBackupSessionManager extends ManagerBase implements Lifecy
     }
 
     /**
+     * Set the regular expression for request uris which should be handled as read-only.
+     *
+     * @param requestUriReadOnlyPattern
+     *            the requestUriReadOnlyPattern to set
+     */
+    public void setRequestUriReadOnlyPattern( final String requestUriReadOnlyPattern ) {
+        _msm.setRequestUriReadOnlyPattern( requestUriReadOnlyPattern );
+    }
+
+    /**
      * Return the compiled pattern used for including session attributes to a session-backup.
      *
      * @return the sessionAttributePattern

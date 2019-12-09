@@ -157,12 +157,18 @@ public class BackupSessionService {
      * @param force
      *            specifies, if session backup shall be forced, e.g. because the
      *            session id was changed due to a memcached failover or tomcat failover.
+     * @param readOnly
+     *            specifies, if session backup shall be skipped because the request was
+     *            defined as read-only, even if the session indeed was changed.
+     *            In this case, the "force" parameter is ignored, but any lock is
+     *            released.
+     *
      * @return a {@link Future} providing the result of the backup task.
      *
      * @see MemcachedSessionService#setSessionBackupAsync(boolean)
      * @see BackupSessionTask#call()
      */
-    public Future<BackupResult> backupSession( final MemcachedBackupSession session, final boolean force ) {
+    public Future<BackupResult> backupSession( final MemcachedBackupSession session, final boolean force, final boolean readOnly ) {
         if ( _log.isDebugEnabled() ) {
             _log.debug( "Starting for session id " + session.getId() );
         }
@@ -176,6 +182,13 @@ public class BackupSessionService {
                 }
                 _statistics.requestWithBackupFailure();
                 return new SimpleFuture<BackupResult>( BackupResult.FAILURE );
+            }
+
+            if ( readOnly ) {
+                _log.debug( "Request defined as read-only, therefore we can skip this" );
+                _statistics.requestWithoutSessionModification();
+                releaseLock( session );
+                return new SimpleFuture<BackupResult>( BackupResult.SKIPPED );
             }
 
             /* Check if the session was accessed at all since the last backup/check.

@@ -87,7 +87,7 @@ public abstract class RequestTrackingHostValveTest {
 
     @Nonnull
     protected RequestTrackingHostValve createSessionTrackerValve() {
-        return new RequestTrackingHostValve(".*\\.(png|gif|jpg|css|js|ico)$", "somesessionid", _service, Statistics.create(),
+        return new RequestTrackingHostValve(".*\\.(png|gif|jpg|css|js|ico)$", null, "somesessionid", _service, Statistics.create(),
                 new AtomicBoolean( true ), new CurrentRequest()) {
             @Override
             protected String[] getSetCookieHeaders(final Response response) {
@@ -108,7 +108,7 @@ public abstract class RequestTrackingHostValveTest {
 
     @Test
     public final void testGetSessionCookieName() throws IOException, ServletException {
-        final RequestTrackingHostValve cut = new RequestTrackingHostValve(null, "foo", _service, Statistics.create(),
+        final RequestTrackingHostValve cut = new RequestTrackingHostValve(null, null, "foo", _service, Statistics.create(),
                 new AtomicBoolean( true ), new CurrentRequest()) {
             @Override
             protected String[] getSetCookieHeaders(final Response response) {
@@ -123,7 +123,7 @@ public abstract class RequestTrackingHostValveTest {
     public final void testProcessRequestNotePresent() throws IOException, ServletException {
         _sessionTrackerValve.invoke( _request, _response );
 
-        verify( _service, never() ).backupSession( anyString(), anyBoolean(), anyString() );
+        verify( _service, never() ).backupSession( anyString(), anyBoolean(), anyBoolean(), anyString() );
         verify(_request).setNote(eq(RequestTrackingHostValve.REQUEST_PROCESS), eq(Boolean.TRUE));
     }
 
@@ -134,7 +134,7 @@ public abstract class RequestTrackingHostValveTest {
 
         _sessionTrackerValve.invoke( _request, _response );
 
-        verify( _service, never() ).backupSession( anyString(), anyBoolean(), anyString() );
+        verify( _service, never() ).backupSession( anyString(), anyBoolean(), anyBoolean(), anyString() );
     }
 
     @Test
@@ -144,7 +144,7 @@ public abstract class RequestTrackingHostValveTest {
         setupGetResponseSetCookieHeadersExpectations(_response, new String[]{generateCookieString( cookie )});
         _sessionTrackerValve.invoke( _request, _response );
 
-        verify( _service ).backupSession( eq( "foo" ), eq( false), anyString() );
+        verify( _service ).backupSession( eq( "foo" ), eq( false ), eq( false ), anyString() );
 
     }
 
@@ -162,7 +162,7 @@ public abstract class RequestTrackingHostValveTest {
 
         _sessionTrackerValve.invoke( _request, _response );
 
-        verify( _service ).backupSession( eq( newSessionId ), eq( true ), anyString() );
+        verify( _service ).backupSession( eq( newSessionId ), eq( true ), anyBoolean(), anyString() );
 
     }
 

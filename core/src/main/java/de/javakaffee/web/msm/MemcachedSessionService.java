@@ -115,6 +115,12 @@ public class MemcachedSessionService {
     private String _requestUriIgnorePattern;
 
     /**
+     * The pattern used for checking if requests should be handled as read-only.
+     * Is matched against request.getRequestURI.
+     */
+    private String _requestUriReadOnlyPattern;
+
+    /**
      * The pattern used for including session attributes to a session-backup,
      *  e.g. <code>^(userName|sessionHistory)$</code>. If not set, all session
      *  attributes will be part of the session-backup.
@@ -471,7 +477,7 @@ public class MemcachedSessionService {
     }
 
     protected RequestTrackingHostValve createRequestTrackingHostValve(final String sessionCookieName, final CurrentRequest currentRequest) {
-        return new RequestTrackingHostValve(_requestUriIgnorePattern, sessionCookieName, this, _statistics, _enabled, currentRequest) {
+        return new RequestTrackingHostValve(_requestUriIgnorePattern, _requestUriReadOnlyPattern, sessionCookieName, this, _statistics, _enabled, currentRequest) {
             @Override
             protected String[] getSetCookieHeaders(final Response response) {
                 return _manager.getSetCookieHeaders(response);
@@ -1050,12 +1056,14 @@ public class MemcachedSessionService {
      *            the if of the session to backup
      * @param sessionIdChanged
      *            specifies, if the session id was changed due to a memcached failover or tomcat failover.
+     * @param readOnly
+     *            specifies, if the session is defined as readOnly.
      * @param requestId
      *            the uri of the request for that the session backup shall be performed.
      *
      * @return a {@link Future} providing the {@link BackupResultStatus}.
      */
-    public Future<BackupResult> backupSession( final String sessionId, final boolean sessionIdChanged, final String requestId ) {
+    public Future<BackupResult> backupSession( final String sessionId, final boolean sessionIdChanged, final boolean readOnly, final String requestId ) {
         if ( !_enabled.get() ) {
             return new SimpleFuture<BackupResult>( BackupResult.SKIPPED );
         }
@@ -1095,7 +1103,7 @@ public class MemcachedSessionService {
         }
 
         final boolean force = sessionIdChanged || msmSession.isSessionIdChanged() || !_sticky && (msmSession.getSecondsSinceLastBackup() >= msmSession.getMaxInactiveInterval());
-        final Future<BackupResult> result = _backupSessionService.backupSession( msmSession, force );
+        final Future<BackupResult> result = _backupSessionService.backupSession( msmSession, force, readOnly );
 
         if ( !_sticky ) {
             _lockingStrategy.onAfterBackupSession( msmSession, force, result, requestId, _backupSessionService );
@@ -1304,6 +1312,16 @@ public class MemcachedSessionService {
      */
     public void setRequestUriIgnorePattern( final String requestUriIgnorePattern ) {
         _requestUriIgnorePattern = requestUriIgnorePattern;
+    }
+
+    /**
+     * Set the regular expression for request uris to handle as read-only.
+     *
+     * @param requestUriReadOnlyPattern
+     *            the requestUriReadOnlyPattern to set
+     */
+    public void setRequestUriReadOnlyPattern( final String requestUriReadOnlyPattern ) {
+        _requestUriReadOnlyPattern = requestUriReadOnlyPattern;
     }
 
     /**

@@ -57,6 +57,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
     protected static final Log _log = LogFactory.getLog( RequestTrackingHostValve.class );
 
     private final Pattern _ignorePattern;
+    private final Pattern _readOnlyPattern;
     private final MemcachedSessionService _sessionBackupService;
     private final Statistics _statistics;
     private final AtomicBoolean _enabled;
@@ -72,6 +73,8 @@ public abstract class RequestTrackingHostValve extends ValveBase {
      *
      * @param ignorePattern
      *            the regular expression for request uris to ignore
+     * @param readOnlyPattern
+     *            the regular expression for read-only request uris
      * @param context
      *            the catalina context of this valve
      * @param sessionBackupService
@@ -82,7 +85,9 @@ public abstract class RequestTrackingHostValve extends ValveBase {
      *            specifies if memcached-session-manager is enabled or not.
      *            If <code>false</code>, each request is just processed without doing anything further.
      */
-    public RequestTrackingHostValve( @Nullable final String ignorePattern, @Nonnull final String sessionCookieName,
+    public RequestTrackingHostValve( @Nullable final String ignorePattern,
+			@Nullable final String readOnlyPattern,
+			@Nonnull final String sessionCookieName,
             @Nonnull final MemcachedSessionService sessionBackupService,
             @Nonnull final Statistics statistics,
             @Nonnull final AtomicBoolean enabled,
@@ -92,6 +97,12 @@ public abstract class RequestTrackingHostValve extends ValveBase {
             _ignorePattern = Pattern.compile( ignorePattern );
         } else {
             _ignorePattern = null;
+        }
+        if ( readOnlyPattern != null ) {
+            _log.info( "Setting readOnlyPattern to " + readOnlyPattern );
+            _readOnlyPattern = Pattern.compile( readOnlyPattern );
+        } else {
+            _readOnlyPattern = null;
         }
         _sessionCookieName = sessionCookieName;
         _sessionBackupService = sessionBackupService;
@@ -149,8 +160,10 @@ public abstract class RequestTrackingHostValve extends ValveBase {
 
             request.setNote(REQUEST_PROCESS, Boolean.TRUE);
 
+            boolean readOnly = _readOnlyPattern != null && _readOnlyPattern.matcher( requestId ).matches();
+
             if ( _log.isDebugEnabled() ) {
-                _log.debug( ">>>>>> Request starting: " + requestId + " (requestedSessionId "+ request.getRequestedSessionId() +") ==================" );
+                _log.debug( ">>>>>> Request starting" + (readOnly ? " (read-only)" : "") + ": " + requestId + " (requestedSessionId "+ request.getRequestedSessionId() +") ==================" );
             }
 
             try {
@@ -158,7 +171,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
                 getNext().invoke( request, response );
             } finally {
                 final Boolean sessionIdChanged = (Boolean) request.getNote(SESSION_ID_CHANGED);
-                backupSession( request, response, sessionIdChanged == null ? false : sessionIdChanged.booleanValue() );
+                backupSession( request, response, sessionIdChanged == null ? false : sessionIdChanged.booleanValue(), readOnly );
                 resetRequestThreadLocal();
             }
 
@@ -221,7 +234,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
         _currentRequest.set( request );
     }
 
-    private void backupSession( final Request request, final Response response, final boolean sessionIdChanged ) {
+    private void backupSession( final Request request, final Response response, final boolean sessionIdChanged, final boolean readOnly ) {
 
         /*
          * Do we have a session?
@@ -229,7 +242,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
         final String sessionId = getSessionId(request, response);
         if ( sessionId != null ) {
             _statistics.requestWithSession();
-            _sessionBackupService.backupSession( sessionId, sessionIdChanged, getURIWithQueryString( request ) );
+            _sessionBackupService.backupSession( sessionId, sessionIdChanged, readOnly, getURIWithQueryString( request ) );
         }
         else {
             _statistics.requestWithoutSession();
