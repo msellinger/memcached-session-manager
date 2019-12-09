@@ -46,6 +46,10 @@ public abstract class RequestTrackingHostValve extends ValveBase {
 
     private static final String REQUEST_IGNORED = "de.javakaffee.msm.request.ignored";
 
+    private static final String REQUEST_READ_ONLY = "de.javakaffee.msm.request.readOnly";
+
+    private static final String REQUEST_READ_ONLY_SESSION = "de.javakaffee.msm.request.readOnlySession";
+
     public static final String REQUEST_PROCESS = "de.javakaffee.msm.request.process";
 
     public static final String SESSION_ID_CHANGED = "de.javakaffee.msm.sessionIdChanged";
@@ -126,6 +130,25 @@ public abstract class RequestTrackingHostValve extends ValveBase {
         return request != null && request.getNote(REQUEST_IGNORED) == Boolean.TRUE;
     }
 
+    public boolean isReadOnlyRequest() {
+        final Request request = _currentRequest.get();
+        return request != null && request.getNote(REQUEST_READ_ONLY) == Boolean.TRUE;
+    }
+    
+    public Object getRequestReadOnlySession() {
+        final Request request = _currentRequest.get();
+        if (request != null)
+            return request.getNote(REQUEST_READ_ONLY_SESSION);
+        else
+            return null;
+    }
+    
+    public void setRequestReadOnlySession( Object readOnlySession ) {
+        final Request request = _currentRequest.get();
+        if (request != null)
+            request.setNote(REQUEST_READ_ONLY_SESSION, readOnlySession );
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -161,6 +184,8 @@ public abstract class RequestTrackingHostValve extends ValveBase {
             request.setNote(REQUEST_PROCESS, Boolean.TRUE);
 
             boolean readOnly = _readOnlyPattern != null && _readOnlyPattern.matcher( requestId ).matches();
+            if ( readOnly )
+                request.setNote(REQUEST_READ_ONLY, Boolean.TRUE);
 
             if ( _log.isDebugEnabled() ) {
                 _log.debug( ">>>>>> Request starting" + (readOnly ? " (read-only)" : "") + ": " + requestId + " (requestedSessionId "+ request.getRequestedSessionId() +") ==================" );
@@ -170,8 +195,10 @@ public abstract class RequestTrackingHostValve extends ValveBase {
                 storeRequestThreadLocal( request );
                 getNext().invoke( request, response );
             } finally {
-                final Boolean sessionIdChanged = (Boolean) request.getNote(SESSION_ID_CHANGED);
-                backupSession( request, response, sessionIdChanged == null ? false : sessionIdChanged.booleanValue(), readOnly );
+                if ( !readOnly ) {
+                    final Boolean sessionIdChanged = (Boolean) request.getNote(SESSION_ID_CHANGED);
+                    backupSession( request, response, sessionIdChanged == null ? false : sessionIdChanged.booleanValue() );
+                }
                 resetRequestThreadLocal();
             }
 
@@ -234,7 +261,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
         _currentRequest.set( request );
     }
 
-    private void backupSession( final Request request, final Response response, final boolean sessionIdChanged, final boolean readOnly ) {
+    private void backupSession( final Request request, final Response response, final boolean sessionIdChanged ) {
 
         /*
          * Do we have a session?
@@ -242,7 +269,7 @@ public abstract class RequestTrackingHostValve extends ValveBase {
         final String sessionId = getSessionId(request, response);
         if ( sessionId != null ) {
             _statistics.requestWithSession();
-            _sessionBackupService.backupSession( sessionId, sessionIdChanged, readOnly, getURIWithQueryString( request ) );
+            _sessionBackupService.backupSession( sessionId, sessionIdChanged, getURIWithQueryString( request ) );
         }
         else {
             _statistics.requestWithoutSession();

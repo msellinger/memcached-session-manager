@@ -575,6 +575,22 @@ public class MemcachedSessionService {
      *                request
      */
     public MemcachedBackupSession findSession( final String id ) throws IOException {
+        if (!_sticky &&  _trackingHostValve.isReadOnlyRequest()) {
+            // For read-only requests in non-sticky session setups, we read a separate instance of the session
+            // which is not shared with regular requests
+            MemcachedBackupSession session = (MemcachedBackupSession)_trackingHostValve.getRequestReadOnlySession();
+            
+            if (session == null && !_trackingHostValve.isIgnoredRequest() && !isContainerSessionLookup()) {
+                if(_log.isDebugEnabled())
+                    _log.debug("Loading read-only session id " + id);
+                session = loadFromMemcachedWithCheck( id, true );
+                if (session != null)
+                    _trackingHostValve.setRequestReadOnlySession( session );
+            }
+            
+            return session;
+        }
+        
         MemcachedBackupSession result = _manager.getSessionInternal( id );
         if ( result != null ) {
             // TODO: document ignoring requests and container managed authentication
@@ -608,7 +624,7 @@ public class MemcachedSessionService {
             }
 
             // else load the session from memcached
-            result = loadFromMemcached( id );
+            result = loadFromMemcached( id, false );
             // checking valid() would expire() the session if it's not valid!
             if ( result != null && result.isValid() ) {
                 if(!_sticky) {
@@ -810,7 +826,7 @@ public class MemcachedSessionService {
             // the session might have been loaded already (by some valve), so let's check our session map
             MemcachedBackupSession session = _manager.getSessionInternal( requestedSessionId );
             if ( session == null ) {
-                session = loadFromMemcachedWithCheck( requestedSessionId );
+                session = loadFromMemcachedWithCheck( requestedSessionId, false );
             }
 
             // checking valid() can expire() the session!
@@ -1063,7 +1079,7 @@ public class MemcachedSessionService {
      *
      * @return a {@link Future} providing the {@link BackupResultStatus}.
      */
-    public Future<BackupResult> backupSession( final String sessionId, final boolean sessionIdChanged, final boolean readOnly, final String requestId ) {
+    public Future<BackupResult> backupSession( final String sessionId, final boolean sessionIdChanged, final String requestId ) {
         if ( !_enabled.get() ) {
             return new SimpleFuture<BackupResult>( BackupResult.SKIPPED );
         }
@@ -1103,7 +1119,7 @@ public class MemcachedSessionService {
         }
 
         final boolean force = sessionIdChanged || msmSession.isSessionIdChanged() || !_sticky && (msmSession.getSecondsSinceLastBackup() >= msmSession.getMaxInactiveInterval());
-        final Future<BackupResult> result = _backupSessionService.backupSession( msmSession, force, readOnly );
+        final Future<BackupResult> result = _backupSessionService.backupSession( msmSession, force );
 
         if ( !_sticky ) {
             _lockingStrategy.onAfterBackupSession( msmSession, force, result, requestId, _backupSessionService );
@@ -1117,11 +1133,11 @@ public class MemcachedSessionService {
         return _transcoderService.serialize( session );
     }
 
-    protected MemcachedBackupSession loadFromMemcachedWithCheck( final String sessionId ) {
+    protected MemcachedBackupSession loadFromMemcachedWithCheck( final String sessionId, boolean ignoreLocks ) {
         if ( !canHitMemcached( sessionId ) || _invalidSessionsCache.get( sessionId ) != null ) {
             return null;
         }
-        return loadFromMemcached( sessionId );
+        return loadFromMemcached( sessionId, ignoreLocks );
     }
 
     /**
@@ -1135,15 +1151,15 @@ public class MemcachedSessionService {
     /**
      * Assumes that before you checked {@link #canHitMemcached(String)}.
      */
-    private MemcachedBackupSession loadFromMemcached( final String sessionId ) {
+    private MemcachedBackupSession loadFromMemcached( final String sessionId, boolean ignoreLocks ) {
         if ( _log.isDebugEnabled() ) {
-            _log.debug( "Loading session from memcached: " + sessionId );
+            _log.debug( "Loading session from memcached: " + sessionId + (ignoreLocks ? " (ignoring locks)" : "") );
         }
 
         LockStatus lockStatus = null;
         try {
 
-            if ( !_sticky ) {
+            if ( !_sticky && !ignoreLocks ) {
                 lockStatus = _lockingStrategy.onBeforeLoadFromMemcached( sessionId );
             }
 
@@ -1165,7 +1181,7 @@ public class MemcachedSessionService {
                 _statistics.registerSince( LOAD_FROM_MEMCACHED, start );
 
                 result.setSticky( _sticky );
-                if ( !_sticky ) {
+                if ( !_sticky && !ignoreLocks ) {
                     _lockingStrategy.onAfterLoadFromMemcached( result, lockStatus );
                 }
 

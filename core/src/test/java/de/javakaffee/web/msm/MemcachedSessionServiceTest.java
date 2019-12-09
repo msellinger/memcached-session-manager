@@ -191,7 +191,7 @@ public abstract class MemcachedSessionServiceTest {
         when( futureMock.get( anyInt(), any( TimeUnit.class ) ) ).thenThrow(new ExecutionException(new RuntimeException("Simulated exception.")));
         when( _memcachedMock.set(  eq( session.getId() ), anyInt(), any(), any( Transcoder.class ) ) ).thenReturn( futureMock );
 
-        final BackupResult backupResult = _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        final BackupResult backupResult = _service.backupSession( session.getIdInternal(), false, null ).get();
         assertEquals(backupResult.getStatus(), BackupResultStatus.FAILURE);
         verify( _memcachedMock, times( 1 ) ).set( eq( session.getId() ), anyInt(), any(), any( Transcoder.class ) );
     }
@@ -210,7 +210,7 @@ public abstract class MemcachedSessionServiceTest {
         session.access();
         session.endAccess();
         session.setAttribute( "foo", "bar" );
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( _memcachedMock, times( 1 ) ).set( eq( session.getId() ), anyInt(), any(), any( Transcoder.class ) );
 
         // we need some millis between last backup and next access (due to check in BackupSessionService)
@@ -222,7 +222,7 @@ public abstract class MemcachedSessionServiceTest {
         session.endAccess();
         session.setAttribute( "foo", "bar" );
         session.setAttribute( "bar", "baz" );
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( _memcachedMock, times( 2 ) ).set( eq( session.getId() ), anyInt(), any(), any( Transcoder.class ) );
 
         // we need some millis between last backup and next access (due to check in BackupSessionService)
@@ -230,7 +230,7 @@ public abstract class MemcachedSessionServiceTest {
 
         /* simulate the third request, without session access
          */
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( _memcachedMock, times( 2 ) ).set( eq( session.getId() ), anyInt(), any(), any( Transcoder.class ) );
 
     }
@@ -256,12 +256,12 @@ public abstract class MemcachedSessionServiceTest {
         session.access();
         session.endAccess();
         session.setAttribute( "foo", "bar" );
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( transcoderServiceMock, times( 1 ) ).serializeAttributes( eq( session ), eq( session.getAttributesInternal() ) );
 
         session.access();
         session.endAccess();
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( transcoderServiceMock, times( 1 ) ).serializeAttributes( eq( session ), eq( session.getAttributesInternal() ) );
 
     }
@@ -285,7 +285,7 @@ public abstract class MemcachedSessionServiceTest {
         final MemcachedBackupSession session = createSession( _service );
 
         session.setAttribute( "foo", "bar" );
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( transcoderServiceMock, times( 1 ) ).serializeAttributes( eq( session ), eq( session.getAttributesInternal() ) );
 
         // we need some millis between last backup and next access (due to check in BackupSessionService)
@@ -293,13 +293,13 @@ public abstract class MemcachedSessionServiceTest {
 
         session.access();
         session.getAttribute( "foo" );
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( transcoderServiceMock, times( 2 ) ).serializeAttributes( eq( session ), eq( session.getAttributesInternal() ) );
 
         // we need some millis between last backup and next access (due to check in BackupSessionService)
         Thread.sleep(5L);
 
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
         verify( transcoderServiceMock, times( 2 ) ).serializeAttributes( eq( session ), eq( session.getAttributesInternal() ) );
 
     }
@@ -324,13 +324,13 @@ public abstract class MemcachedSessionServiceTest {
         final MemcachedBackupSession session = createSession( _service );
 
         session.setAttribute( "foo", "bar" );
-        _service.backupSession( session.getIdInternal(), false, false, "foo" ).get();
+        _service.backupSession( session.getIdInternal(), false, "foo" ).get();
 
         final String oldSessionId = session.getId();
         _service.getManager().changeSessionId( session );
 
         // on session backup we specify sessionIdChanged as false as we're not aware of this fact
-        _service.backupSession( session.getIdInternal(), false, false, "foo" );
+        _service.backupSession( session.getIdInternal(), false, "foo" );
 
         // remove session with old id and add it with the new id
         verify( _memcachedMock, times( 1 ) ).delete( eq( oldSessionId ) );
@@ -372,7 +372,7 @@ public abstract class MemcachedSessionServiceTest {
         session.setAttribute( "foo", "bar" );
         final String sessionId = session.getId();
 
-        _service.backupSession( sessionId, false, false, "unused" ).get();
+        _service.backupSession( sessionId, false, "unused" ).get();
 
         verify( _memcachedMock, times( 1 ) ).set( eq( sessionId ), eq( 0 ), any(), any( Transcoder.class ) );
 
@@ -429,7 +429,7 @@ public abstract class MemcachedSessionServiceTest {
         when( futureMock.get( anyInt(), any( TimeUnit.class ) ) ).thenReturn( Boolean.FALSE );
         when( _memcachedMock.add( any( String.class ), anyInt(), any(), any( Transcoder.class ) ) ).thenReturn( futureMock );
 
-        _service.backupSession( sessionId, false, false, "unused" ).get();
+        _service.backupSession( sessionId, false, "unused" ).get();
 
         // update validity info
         verify( _memcachedMock, times( 1 ) ).set( eq( validityKey ), eq( 0 ), any(), any( Transcoder.class ) );
@@ -472,7 +472,7 @@ public abstract class MemcachedSessionServiceTest {
         session.access();
         session.endAccess();
 
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
 
         verify( transcoderServiceMock, never() ).serializeAttributes( (MemcachedBackupSession)any(), (ConcurrentMap)any() );
 
@@ -497,7 +497,7 @@ public abstract class MemcachedSessionServiceTest {
         session.setAttribute( "bar", "bar" );
         session.setAttribute( "baz", "baz" );
 
-        _service.backupSession( session.getIdInternal(), false, false, null ).get();
+        _service.backupSession( session.getIdInternal(), false, null ).get();
 
         // capture the supplied argument, alternatively we could have used some Matcher (but there seems to be no MapMatcher).
         final ArgumentCaptor<ConcurrentMap> model = ArgumentCaptor.forClass( ConcurrentMap.class );
@@ -566,7 +566,7 @@ public abstract class MemcachedSessionServiceTest {
         // the session is now already added to the internal session map
         assertNotNull(session.getId());
 
-        Future<BackupResult> result = _service.backupSession(session.getId(), false, false, "unused");
+        Future<BackupResult> result = _service.backupSession(session.getId(), false, "unused");
         assertFalse(_service.getManager().getSessionsInternal().containsKey(session.getId()));
 
         // start another request that loads the session from mc
@@ -597,7 +597,7 @@ public abstract class MemcachedSessionServiceTest {
                 // and wait again so that the other thread can do some work
                 barrier.await();
 
-                final Future<BackupResult> result = _service.backupSession(session.getId(), false, false, "unused");
+                final Future<BackupResult> result = _service.backupSession(session.getId(), false, "unused");
                 _service.getTrackingHostValve().resetRequestThreadLocal();
 
                 assertEquals(result.get().getStatus(), BackupResultStatus.SUCCESS);
@@ -613,7 +613,7 @@ public abstract class MemcachedSessionServiceTest {
 
         barrier.await();
 
-        result = _service.backupSession(session.getId(), false, false, null);
+        result = _service.backupSession(session.getId(), false, null);
         _service.getTrackingHostValve().resetRequestThreadLocal();
         assertEquals(result.get().getStatus(), BackupResultStatus.SKIPPED);
         // This is the important point!
@@ -646,7 +646,7 @@ public abstract class MemcachedSessionServiceTest {
         final MemcachedBackupSession session = _service.findSession(sessionId);
         assertNull(session);
 
-        _service.backupSession( sessionId, false, false, null ).get();
+        _service.backupSession( sessionId, false, null ).get();
 
         // check that validity info is not loaded - this would trigger the
         // WARNING: Found no validity info for session id ...

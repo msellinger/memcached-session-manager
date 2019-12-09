@@ -128,7 +128,7 @@ public class DummyMemcachedSessionService<T extends MemcachedSessionService.Sess
     }
 
     @Override
-    protected MemcachedBackupSession loadFromMemcachedWithCheck( final String sessionId ) {
+    protected MemcachedBackupSession loadFromMemcachedWithCheck( final String sessionId, boolean ignoreLocks ) {
         return null;
     }
 

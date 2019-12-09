@@ -429,7 +429,7 @@ public abstract class LockingStrategy {
 
     private void updateSession( @Nonnull final MemcachedBackupSession session,
             @Nonnull final BackupSessionService backupSessionService ) throws InterruptedException {
-        final Future<BackupResult> result = backupSessionService.backupSession( session, true, false );
+        final Future<BackupResult> result = backupSessionService.backupSession( session, true );
         try {
             if ( result.get().getStatus() != BackupResultStatus.SUCCESS ) {
                 _log.warn( "Update for session (after unsuccessful ping) did not return SUCCESS, but " + result.get() );

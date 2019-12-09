@@ -107,7 +107,7 @@ public abstract class CouchbaseIntegrationTest {
         session.setId(sessionId);
         session.setAttribute( "foo", "bar" );
 
-        final BackupResult backupResult = service.backupSession( session.getIdInternal(), false, false, null ).get();
+        final BackupResult backupResult = service.backupSession( session.getIdInternal(), false, null ).get();
         assertEquals(backupResult.getStatus(), BackupResultStatus.SUCCESS);
 
         final MemcachedBackupSession loadedSession = transcoderService.deserialize(mc.get(sessionId, ByteArrayTranscoder.INSTANCE), _tomcat1.getManager());
@@ -130,7 +130,7 @@ public abstract class CouchbaseIntegrationTest {
         session.setId(sessionId);
         session.setAttribute( "foo", "bar" );
 
-        final BackupResult backupResult = service.backupSession( session.getIdInternal(), false, false, null ).get();
+        final BackupResult backupResult = service.backupSession( session.getIdInternal(), false, null ).get();
         assertEquals(backupResult.getStatus(), BackupResultStatus.SUCCESS);
 
         final MemcachedBackupSession loadedSession = transcoderService.deserialize(mc.get(sessionId, ByteArrayTranscoder.INSTANCE), _tomcat1.getManager());
